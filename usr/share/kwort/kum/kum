@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+function list_items(){
+	awk -F ":" '$5 == "Added with Kwort User Manager" {print "<item>"$1"</item>"}' /etc/passwd
+}
+
+function say_dont_fool_me(){
+	ALERT_DIALOG="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Do not try to fool me, you are not root</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>" gtkdialog --program=ALERT_DIALOG
+}
+
+if [ "$(id -u)" != "0" ]; then
+	say_dont_fool_me
+	exit 1
+fi
+
+m1="<window title=\"Kwort User Manager\" icon-name=\"${USER_INFO_IMG48}\" window_position=\"1\" resizable=\"true\">
+	<vbox>
+		<frame>
+			<hbox>
+				<vbox>
+					<text use-markup=\"true\">
+						<label>\"<b>Users:</b>\"</label>
+					</text>
+					<text>
+						<label>__________</label>
+					</text>
+					<pixmap>
+						<input file>${USER_INFO_IMG48}</input>
+					</pixmap>
+				</vbox>
+				<list>
+					<variable>LOGIN</variable>"
+# Here goes ${items} ;-)
+m2="			</list>
+			</hbox>
+		</frame>
+		<hbox>
+			<button>
+				<label>Close</label>
+				<input file>${CLOSE_IMG}</input>
+				<action type=\"closewindow\">MAIN_DIALOG</action>
+			</button>
+			<button>
+				<label>Add</label>
+				<input file>${ADD_IMG}</input>
+				<action>${ADD_USER}</action>
+				<action type=\"closewindow\">MAIN_DIALOG</action>
+			</button>
+			<button>
+				<label>Modify</label>
+				<input file>${MODIFY_IMG}</input>
+				<action>${MODIFY_USER}</action>
+				<action type=\"closewindow\">MAIN_DIALOG</action>
+			</button>
+			<button>
+				<label>Remove</label>
+				<input file>${REMOVE_IMG}</input>
+				<action>${REMOVE_USER}</action>
+				<action type=\"closewindow\">MAIN_DIALOG</action>
+			</button>
+		</hbox>
+	</vbox>
+</window>"
+
+OUT=NO
+while [ "${OUT}" == "NO" ]; do
+	OUT="YES"
+	items=$(list_items)
+	export MAIN_DIALOG="${m1}${items}${m2}"
+	eval $(gtkdialog --program=MAIN_DIALOG)
+done
+

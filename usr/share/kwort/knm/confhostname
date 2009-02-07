@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+function show_default() {
+	if [ -n "${2}" -a -e "/etc/sysconfig/net/${2}" ]; then
+		source "/etc/sysconfig/net/${2}"
+		if [ -n "${!1}" ]; then
+			echo "<default>${!1}</default>"
+		fi
+	fi
+}
+
+export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IMG}\" window_position=\"1\" resizable=\"false\">
+	<vbox>
+		<frame Hostname Setting>
+			<vbox>
+				<hbox>
+					<pixmap>
+						<input file>${HOSTNAME_IMG}</input>
+					</pixmap>
+					<text>
+						<label>Hostname: </label>
+					</text>
+					<entry>
+						$(show_default "HOSTNAME" hostname )
+						<variable>HOSTNAME</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<pixmap>
+						<input file>${DOMAIN_IMG}</input>
+					</pixmap>
+					<text>
+						<label>Domain: </label>
+					</text>
+					<entry>
+						$(show_default "DOMAIN" hostname )
+						<variable>DOMAIN</variable>
+					</entry>
+				</hbox>
+			</vbox>
+		</frame>
+		<hbox>
+			<button cancel>
+				<input file>${CANCEL_IMG}</input>
+			</button>
+			<button ok>
+				<input file>${OK_IMG}</input>
+			</button>
+		</hbox>
+	</vbox>
+</window>"
+
+eval $(gtkdialog --program=MAIN_DIALOG)
+
+if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" -o -z "${HOSTNAME}" ]; then
+	exit
+fi
+
+echo "HOSTNAME=\"${HOSTNAME}\"" > /etc/sysconfig/net/hostname
+echo "DOMAIN=\"${DOMAIN}\"" >> /etc/sysconfig/net/hostname
+
+#EOF

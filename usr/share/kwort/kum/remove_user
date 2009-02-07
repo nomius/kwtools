@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+if [ -z "${LOGIN}" ]; then
+	ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Wrong data: You must select the user you want to remove</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
+	export ALERT_MESSAGE
+	gtkdialog --program=ALERT_MESSAGE >/dev/null
+	echo "OUT=NO"
+	exit
+fi
+
+export REMOVE_DIALOG="<vbox><pixmap><input file>${USER_INFO_IMG48}</input></pixmap><text><label>Are you sure you want to remove user ${LOGIN}?</label></text><hbox><button ok><input file>${OK_IMG}</input></button><button cancel><input file>${CANCEL_IMG}</input></button></hbox></vbox>"
+eval `gtkdialog --program=REMOVE_DIALOG`
+if [ "${EXIT}" == "OK" ]; then
+	userdel -r "${LOGIN}" >/dev/null 2>&1
+fi
+echo "OUT=NO"

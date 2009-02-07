@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+cat << _EOF > /dev/null
+mkdir -p ${HOMEDIR}/.mpd/playlists ${HOMEDIR}/.cache/Thunar ${HOMEDIR}/Music ${HOMEDIR}/Documents ${HOMEDIR}/Images
+tdbtool null create ${HOMEDIR}/.cache/Thunar/metafile.tdb 2>/dev/null
+tdbtool ${HOMEDIR}/.cache/Thunar/metafile.tdb insert ${HOMEDIR}/Music "\00emblem-music\00\00\00"
+tdbtool ${HOMEDIR}/.cache/Thunar/metafile.tdb insert ${HOMEDIR}/Documents "\00emblem-documents\00\00\00"
+tdbtool ${HOMEDIR}/.cache/Thunar/metafile.tdb insert ${HOMEDIR}/Images "\00emblem-image\00\00\00"
+chmod 711 ${HOMEDIR} && chown -R ${LOGIN}:users ${HOMEDIR}
+cat << EOF > ${HOMEDIR}/.mpdconf
+music_directory      "${HOMEDIR}/Music"
+playlist_directory   "~/.mpd/playlists"
+db_file              "~/.mpd/mpd.db"
+log_file             "~/.mpd/mpd.log"
+error_file           "~/.mpd/mpd.error"
+
+audio_output {
+        type             "alsa"
+        name             "Alsa"
+}
+
+mixer_type           "alsa"
+mixer_device         "default"
+mixer_control        "PCM"
+EOF
+_EOF
+
+touch ${HOMEDIR}/.gtk-bookmarks
+if [ "$(grep "file:///${HOMEDIR}/Music" ${HOMEDIR}/.gtk-bookmarks)" = "" ]; then
+	echo "file:///${HOMEDIR}/Music" >> ${HOMEDIR}/.gtk-bookmarks
+fi
+if [ "$(grep "file:///${HOMEDIR}/Images" ${HOMEDIR}/.gtk-bookmarks)" = "" ]; then
+	echo "file:///${HOMEDIR}/Images" >> ${HOMEDIR}/.gtk-bookmarks
+fi
+if [ "$(grep "file:///${HOMEDIR}/Documents" ${HOMEDIR}/.gtk-bookmarks)" = "" ]; then
+	echo "file:///${HOMEDIR}/Documents" >> ${HOMEDIR}/.gtk-bookmarks
+fi
+#chown -R ${LOGIN}:users ${HOMEDIR}/.gtk-bookmarks ${HOMEDIR}/.mpdconf
+#su $LOGIN -c "/usr/bin/mpd --create-db"
+

@@ -1,0 +1,5 @@
+DEV_TYPE="loopback"
+CONNECTION_TYPE="static"
+IP="127.0.0.1"
+MASK=""
+BROADCAST=""

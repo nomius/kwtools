@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+DEFAULT_GROUP=$(groups ${LOGIN} | awk -F " " '{print $1}')
+DEFGRPS=$(groups ${LOGIN} | tr ' ' ',')
+NUID=$(awk -F ":" -v LOGIN=${LOGIN} '$1 == LOGIN {print $4}' /etc/passwd)
+HOMEDIR=$(awk -F ":" -v LOGIN=${LOGIN} '$1 == LOGIN {print $6}' /etc/passwd)
+DEFSHELL=$(awk -F ":" -v LOGIN=${LOGIN} '$1 == LOGIN {print $7}' /etc/passwd)
+
+if [ "${DEFSHELL}" == "${BDEFSHELL}" -o -z "${DEFSHELL}" ]; then
+	ACTIVE=no
+	DEFSHELL="${BDEFSHELL}"
+else
+	ACTIVE=yes
+fi
+
+FORWARD=no
+
+# Function to check whether groups exist in the /etc/group file
+function check_group () {
+	local got_error group
+	if [ -n "${1}" ]; then
+		for group in $@ ; do
+			local uid_not_named="" uid_not_num=""
+			grep -v "$^" $GRPFILE | awk -F: '{print $1}' | grep "^${group}$" >/dev/null 2>&1 || uid_not_named=yes
+			grep -v "$^" $GRPFILE | awk -F: '{print $3}' | grep "^${group}$" >/dev/null 2>&1 || uid_not_num=yes
+			if [ ! -z "$uid_not_named" -a ! -z "$uid_not_num" ]; then
+				echo "$group"
+				got_error=yes
+			fi
+		done
+	fi
+	# Return exit code of 1 if at least one of the groups didn't exist
+	if [ ! -z "$got_error" ]; then
+		return 1
+	fi
+	return 0
+}
+
+if [ -z "${LOGIN}" ]; then
+	ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Wrong data: You must select the user you want to modify</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
+	export ALERT_MESSAGE
+	gtkdialog --program=ALERT_MESSAGE >/dev/null
+	echo "OUT=NO"
+	exit
+fi
+
+FORWARD=no
+while [ "${FORWARD}" == "no" ]; do
+	export MAIN_DIALOG="
+<vbox spacing=\"10\">
+	<pixmap>
+		<input file>${USER_INFO_IMG48}</input>
+	</pixmap>
+	<notebook labels=\"General|Advanced\">
+		<frame Basic User Settings>
+			<vbox spacing=\"10\">
+				<hbox>
+					<text>
+						<label>User name: </label>
+					</text>
+					<entry editable=\"false\">
+						<default>${LOGIN}</default>
+						<variable>${LOGIN}</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>Password: </label>
+					</text>
+					<entry invisible_char=\"*\" visibility=\"false\">
+						<default>********</default>
+						<variable>PASSWORD1</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>Retry Password: </label>
+					</text>
+					<entry invisible_char=\"*\" visibility=\"false\">
+						<default>********</default>
+						<variable>PASSWORD2</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>Home directory: </label>
+					</text>
+					<entry>
+						<default>${HOMEDIR}</default>
+						<variable>HOMEDIR</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<checkbox>
+						<label>Active</label>
+						<default>${ACTIVE}</default>
+						<variable>ACTIVE</variable>
+						<action>if true enable: DEFSHELL</action>
+						<action>if false disable: DEFSHELL</action>
+					</checkbox>
+				</hbox>
+			</vbox>
+		</frame>
+		<vbox>
+			<frame Advanced User Settings - Leave as it is for default>
+				<hbox>
+					<text>
+						<label>User ID: </label>
+					</text>
+					<entry max_length=\"5\" width_chars=\"5\">
+						<default>${NUID}</default>
+						<variable>NUID</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>Initial group: </label>
+					</text>
+					<entry>
+						<default>${DEFAULT_GROUP}</default>
+						<variable>DEFAULT_GROUP</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>Additional groups: </label>
+					</text>
+					<entry>
+						<default>${DEFGRPS}</default>
+						<variable>DEFGRPS</variable>
+					</entry>
+				</hbox>
+				<hbox>
+					<text>
+						<label>User shell: </label>
+					</text>
+					<entry>
+						<default>${DEFSHELL}</default>
+						<variable>DEFSHELL</variable>
+					</entry>
+				</hbox>
+
+			</frame>
+ 		</vbox>
+	</notebook>
+	<hbox>
+		<button cancel>
+			<input file>${CANCEL_IMG}</input>
+		</button>
+		<button ok>
+			<input file>${OK_IMG}</input>
+		</button>
+	</hbox>
+</vbox>"
+	eval $(gtkdialog --program=MAIN_DIALOG)
+	if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" ]; then
+		echo "OUT=NO"
+		exit
+	fi
+	if [ "${EXIT}" == "OK" ]; then
+		ALTR=""
+		# Password check
+		if [ "${PASSWORD1}" != "${PASSWORD2}" ]; then
+			ALTR="Password doesn't match"
+		fi
+		# Home directory check
+		if [ -z ${HOMEDIR} ]; then
+			ALTR="Home directory can not be empty"
+		else
+			FHOMEDIR="-d ${HOMEDIR}"
+		fi
+		# Uid check
+		if [ "$(echo "${NUID}" | grep -v "[0-9]")" != "" ]; then
+			ALTR="Wrong user ID number"
+		elif [ "$(awk -v NUID="${NUID}" -v LOGIN="${LOGIN}" -F ":" 'NUID == $3 && LOGIN != $1 {print $3}' /etc/passwd)" != "" ]; then
+			ALTR="User ID belong to another user"
+		else
+			FNUID="-u ${NUID}"
+		fi
+		# User group check
+		fnd=$(check_group ${DEFAULT_GROUP})
+		if [ -z "${fnd}" ]; then
+			FDEFAULT_GROUP="-g ${DEFAULT_GROUP}"
+		else
+			ALTR="group ${fnd} does not exists"
+		fi
+		# Additional groups check
+		AGID="$(echo "$DEFGRPS" | tr -d ' ' | tr , ' ')"
+		if [ ! -z "$AGID" ]; then
+			fnd=$(check_group $AGID)
+			if [ -z "${fnd}" ]; then
+				FDEFGRPS="-G $(echo "$AGID" | tr ' ' ,)"
+			else
+				ALTR="Group ${fnd} does not exists"
+			fi
+		fi
+		# Shell check with /etc/shells and ACTIVE
+		if [ "${ACTIVE}" == "true" ]; then
+			if [ "$(grep "^${DEFSHELL}$" /etc/shells)" == "" ]; then
+				ALTR="${DEFSHELL} is not listed in /etc/shells. Then, for security reasons it is disabled"
+			else
+				FDEFSHELL="-s ${DEFSHELL}"
+			fi
+		else
+			FDEFSHELL="-s ${BDEFSHELL}"
+		fi
+		# If there was an alert, we print it and go over again, otherwise, go forward
+		if [ -n "${ALTR}" ]; then
+			ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Wrong data: ${ALTR}</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
+			export ALERT_MESSAGE
+			gtkdialog --program=ALERT_MESSAGE >/dev/null
+		else
+			FORWARD=yes
+		fi
+	fi
+done
+
+usermod	-c "${SEARCH_STR}" ${FNUID} ${FDEFAULT_GROUP} ${FDEFGRPS} ${FHOMEDIR} ${FDEFSHELL} ${LOGIN} >/dev/null 2>&1
+mkdir -p ${HOMEDIR}
+chown -R ${LOGIN}:${DEFAULT_GROUP} ${HOMEDIR}
+if [ "${PASSWORD1}" != "********" ]; then
+	echo "${LOGIN}:${PASSWORD1}" | chpasswd
+fi
+echo "OUT=NO"

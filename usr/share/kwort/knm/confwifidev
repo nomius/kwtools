@@ -1,0 +1,294 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+function show_default() {
+	if [ -n "${2}" -a -e "/etc/sysconfig/net/devices/${2}" ]; then
+		source /etc/sysconfig/net/devices/$2
+		if [ -n "${!1}" ]; then
+			echo "<default>${!1}</default>"
+			return
+		fi
+	fi
+	if [ "${1}" == "NDISWRAPPER" ]; then
+		echo "<default>false</default>"
+	fi
+}
+
+function list_connection_types() {
+	if [ -e "/etc/sysconfig/net/devices/${1}" ]; then
+		if [ "$(grep "CONNECTION_TYPE=\"dhcp\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>Obtain IP automatically (DHCP)</item>"
+			echo "<item>Static Address</item>"
+			echo "<item>None</item>"
+			return 0
+		fi
+		if [ "$(grep "CONNECTION_TYPE=\"static\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>Static Address</item>"
+			echo "<item>Obtain IP automatically (DHCP)</item>"
+			echo "<item>None</item>"
+			return 0
+		fi
+		if [ "$(grep "CONNECTION_TYPE=\"none\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>None</item>"
+			echo "<item>Static Address</item>"
+			echo "<item>Obtain IP automatically (DHCP)</item>"
+			return 0
+		fi
+	fi
+	# Fall back
+	echo "<item>Obtain IP automatically (DHCP)</item>"
+	echo "<item>Static Address</item>"
+	echo "<item>None</item>"
+}
+
+function list_passwd_types() {
+	if [ -e "/etc/sysconfig/net/devices/${1}" ]; then
+		if [ "$(grep "ENCRYPTION_TYPE=\"WEP\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>WEP</item>"
+			echo "<item>None</item>"
+			echo "<item>WPA-PSK</item>"
+			echo "<item>WPA-TKIP</item>"
+			return 0
+		fi
+		if [ "$(grep "ENCRYPTION_TYPE=\"WPA-PSK\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>WPA-PSK</item>"
+			echo "<item>None</item>"
+			echo "<item>WEP</item>"
+			echo "<item>WPA-TKIP</item>"
+			return 0
+		fi
+		if [ "$(grep "ENCRYPTION_TYPE=\"WPA-TKIP\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>WPA-TKIP</item>"
+			echo "<item>None</item>"
+			echo "<item>WPA-PSK</item>"
+			echo "<item>WEP</item>"
+			return 0
+		fi
+		if [ "$(grep "ENCRYPTION_TYPE=\"None\"" /etc/sysconfig/net/devices/${1})" != "" ]; then
+			echo "<item>None</item>"
+			echo "<item>WEP</item>"
+			echo "<item>WPA-PSK</item>"
+			echo "<item>WPA-TKIP</item>"
+			return 0
+		fi
+	fi
+	# Fall back
+	echo "<item>None</item>"
+	echo "<item>WEP</item>"
+	echo "<item>WPA-PSK</item>"
+	echo "<item>WPA-TKIP</item>"
+}
+
+function get_wifi_devices() {
+	x=0
+	while read line; do
+		if [[ $line = *Address:* ]]; then
+			address=$(echo $line | awk '{print $5}')
+		elif [[ $line = ESSID:* ]]; then
+			essid=${line#*ESSID:}
+			essid=${essid//\"/}
+		fi
+		if [ -n "$address" ] && [ -n "$essid" ]; then
+			DEVICES[${x}]="$essid $address"
+			x=$((${x} + 1))
+			DEVICES[${x}]=""
+			address=
+			essid=
+		fi
+	done < <(iwlist ${1} scan)
+	if [ ${x} -gt 0 ]; then
+		HAVE_ESSIDS=1
+	else
+		HAVE_ESSIDS=0
+	fi
+}
+
+function list_items_essids(){
+	for((i=0;$i<=${x};i++)); do
+		if [ "${DEVICES[${i}]}" != "" ]; then
+			echo "<item>${DEVICES[${i}]}</item>"
+		fi
+	done
+}
+
+if [ -z "${1}" ]; then
+	exit
+fi
+
+REFRESH="true"
+while [ "${REFRESH}" == "true" ]; do
+	ESSIDS=0
+	get_wifi_devices ${1}
+	REFRESH="false"
+	export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IMG}\" window_position=\"1\" resizable=\"false\">
+		<vbox>
+			<notebook labels=\"Basic configuration|IP Address|Encryption\">
+				<frame Basic Wireless Settings: Device - ${1}>
+					<vbox>
+						<hbox>
+							<text>
+								<label>ESSID: </label>
+							</text>
+							$(if [ ${HAVE_ESSIDS} -ne 0 ]; then echo "<combobox case-sensitive=\"true\" value-in-list=\"true\" allow-empty=\"false\"><variable>ESSID</variable>`list_items_essids`</combobox>"; else echo "<text><label>No networks availables</label></text>"; fi)
+							<button>
+								<label>Rescan</label>
+								<input file>${REFRESH_IMG}</input>
+								<action>echo REFRESH=true</action>
+								<action type=\"closewindow\">MAIN_DIALOG</action> 
+							</button>
+						</hbox>
+						<hbox>
+							<text>
+								<label>Device Type: </label>
+							</text>
+								<combobox case-sensitive=\"true\" value-in-list=\"true\" allow-empty=\"false\">
+								<variable>CONNECTION_TYPE</variable>
+								$(list_connection_types ${1})
+							</combobox>
+						</hbox>
+						<hbox>
+							<checkbox>
+								<label>Use ndiswrapper over native driver</label>
+								<variable>NDISWRAPPER</variable>
+								<action>if true enable:DRIVER_BUTTON</action>
+								<action>if false disable:DRIVER_BUTTON</action>
+							</checkbox>
+							<button>
+								<input file>${WINLOGO_IMG}</input>
+								<label>Install Windows driver</label>
+								<variable>DRIVER_BUTTON</variable>
+								<action>${INSTALL_NDISWRAPPER}</action>
+							</button>
+						</hbox>
+					</vbox>
+				</frame>
+				<frame IP Address Settings: Device - ${1}>
+					<vbox>
+						<hbox>
+							<text>
+								<label>IP Address: </label>
+							</text>
+							<entry>
+								$(show_default IP ${1})
+								<variable>IP</variable>
+							</entry>
+						</hbox>
+						<hbox>
+							<text>
+								<label>Network Mask: </label>
+							</text>
+							<entry>
+								$(show_default MASK ${1})
+								<variable>MASK</variable>
+							</entry>
+						</hbox>
+						<hbox>
+							<text>
+								<label>Broadcast Address: </label>
+							</text>
+							<entry>
+								$(show_default BROADCAST ${1})
+								<variable>BROADCAST</variable>
+							</entry>
+						</hbox>
+					</vbox>
+				</frame>
+				<frame Encryption Settings: Device - ${1}>
+					<vbox>
+						<hbox>
+							<text>
+								<label>Encryption Type: </label>
+							</text>
+								<combobox case-sensitive=\"true\" value-in-list=\"true\" allow-empty=\"false\">
+								<variable>ENCRYPTION_TYPE</variable>
+								$(list_passwd_types)
+							</combobox>
+						</hbox>
+						<hbox>
+							<text>
+								<label>Password: </label>
+							</text>
+							<entry invisible_char=\"*\" visibility=\"false\">
+								$(show_default ENCRYPTION_PASSWD ${1})
+								<variable>ENCRYPTION_PASSWD</variable>
+							</entry>
+						</hbox>
+					</vbox>
+				</frame>
+			</notebook>
+			<hbox>
+				<button cancel>
+					<input file>${CANCEL_IMG}</input>
+				</button>
+				<button ok>
+					<input file>${OK_IMG}</input>
+				</button>
+				<button>
+					<label>Apply</label>
+					<input file>${APPLY_IMG}</input>
+					<action type=\"closewindow\">MAIN_DIALOG</action>
+				</button>
+			</hbox>
+		</vbox>
+	</window>"
+	eval $(gtkdialog --program=MAIN_DIALOG)
+	if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" ]; then
+		exit
+	fi
+	if [ "${EXIT}" == "OK" ]; then
+		REFRESH="false"
+	fi
+done
+
+echo "DEV_TYPE=\"wireless\"" > /etc/sysconfig/net/devices/${1}
+case "${CONNECTION_TYPE}" in
+	'Obtain IP automatically (DHCP)')
+		echo "CONNECTION_TYPE=\"dhcp\"" >> /etc/sysconfig/net/devices/${1}
+	;;
+	'Static Address')
+		echo "CONNECTION_TYPE=\"static\"" >> /etc/sysconfig/net/devices/${1}
+	;;
+	'None')
+		echo "CONNECTION_TYPE=\"none\"" >> /etc/sysconfig/net/devices/${1}
+	;;
+esac
+echo "ESSID=\"${ESSID}\"" >> /etc/sysconfig/net/devices/${1}
+echo "IP=\"${IP}\"" >> /etc/sysconfig/net/devices/${1}
+echo "MASK=\"${MASK}\"" >> /etc/sysconfig/net/devices/${1}
+echo "BROADCAST=\"${BROADCAST}\"" >> /etc/sysconfig/net/devices/${1}
+echo "NDISWRAPPER=\"${NDISWRAPPER}\"" >> /etc/sysconfig/net/devices/${1}
+if [ ${ENCRYPTION_TYPE} == "None" ]; then
+	ENCRYPTION_TYPE=none
+fi
+echo "ENCRYPTION_TYPE=\"${ENCRYPTION_TYPE}\"" >> /etc/sysconfig/net/devices/${1}
+if [ "${ENCRYPTION_TYPE}" == "WEP" ]; then
+	echo "ENCRYPTION_PASSWD=\"${ENCRYPTION_PASSWD}\"" >> /etc/sysconfig/net/devices/${1}
+fi
+chmod 0600 /etc/sysconfig/net/devices/${1}
+
+if [[ ${ENCRYPTION_TYPE} == WPA* ]]; then
+	cat << EOF > /etc/wpa_supplicant.conf
+ctrl_interface=/var/run/wpa_supplicant
+network={
+	ssid="${ESSID}"
+	psk="${ENCRYPTION_PASSWD}"
+	key_mgmt=WPA-PSK
+	proto=WPA
+EOF
+	if [ "${ENCRYPTION_TYPE}" == "WPA-TKIP" ]; then
+		echo -e "\tpairwise=TKIP\n}" >> /etc/wpa_supplicant.conf
+	else
+		echo "}" >> /etc/wpa_supplicant.conf
+	fi
+	chmod 0600 /etc/wpa_supplicant.conf
+fi
+if [ "${CONNECTION_TYPE}" == 'Obtain IP automatically (DHCP)' ]; then
+	echo "GATEWAY=\"\"" > /etc/sysconfig/net/gateway
+fi
+
+if [ "${EXIT}" == "closewindow" ]; then
+	/etc/rc.d/rc.net restart ${1}
+fi
+
+#EOF

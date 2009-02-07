@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+source /usr/share/kwort/common/default
+
+mkdir -p /etc/sysconfig/net/devices
+
+function say_dont_fool_me(){
+ 	ALERT_DIALOG="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Do not try to fool me, you are not root</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>" gtkdialog --program=ALERT_DIALOG
+}
+
+if [ "$(id -u)" != "0" ]; then
+	say_dont_fool_me
+	exit 1
+fi
+
+if [ "$(grep ':' /proc/net/wireless 2>/dev/null)" != "" ]; then
+	HAVE_WIRELESS=yes
+else
+	HAVE_WIRELESS=no
+fi
+
+while read line; do
+	if [[ ${line} == eth* ]]; then
+		if [ "$(grep "${line}:" /proc/net/wireless 2>/dev/null)" == "" ]; then
+			HAVE_ETHERNET=yes
+			ARR_ETHERNET[${TOT_ETH}]="${line}"
+			TOT_ETH=$((${TOT_ETH} + 1))
+		fi
+	fi
+done < <(cat /proc/net/dev | grep -v \| | awk -F: '{print $1}' | sed -e 's/ //g')
+TOT_ETH=$((${TOT_ETH} - 1))
+
+if [ "${HAVE_ETHERNET}" != "yes" ]; then
+	HAVE_ETHERNET=no
+fi
+
+TOT_WIFI=0
+if [ "${HAVE_WIRELESS}" == "yes" ]; then
+	while read line; do
+		HAVE_WIRELESS=yes
+		ARR_WIRELESS[${TOT_WIFI}]="${line}"
+		TOT_WIFI=$((${TOT_WIFI} + 1))
+	done < <(cat /proc/net/wireless | grep -v \| | awk -F: '{print $1}' | sed -e 's/ //g')
+fi
+TOT_WIFI=$((${TOT_WIFI} - 1))
+
+function list_ethernet_dev() {
+	if [ "${HAVE_ETHERNET}" == "yes" ]; then
+		echo "<frame Configure Ethernet Devices><hbox homogeneous=\"true\">"
+		for((i=0;${i}<=${TOT_ETH};i++)); do
+			echo "<button><label>Configure ${ARR_ETHERNET[${i}]}</label><input file>${WIRED_IMG}</input><action>${CONF_ETH_DEV} ${ARR_ETHERNET[${i}]}</action></button>"
+		done
+		echo "</hbox></frame>"
+	fi
+}
+
+COUNT_WIFI=$((`lspci | grep "802.11" | wc -l` + `lsusb -v | grep "802.11" | wc -l`))
+if [ ${COUNT_WIFI} -gt $((${TOT_WIFI} + 1)) ]; then
+	ADD_WIFI_DEV=yes
+else
+	ADD_WIFI_DEV=no
+fi
+
+function list_wireless_dev() {
+	if [ "${HAVE_WIRELESS}" == "yes" ]; then
+		echo "<frame Configure Wireless Devices><hbox homogeneous=\"true\">"
+		for((i=0;${i}<=${TOT_WIFI};i++)); do
+			echo "<button><label>Configure ${ARR_WIRELESS[${i}]}</label><input file>${WIRELESS_IMG}</input><action>${CONF_WIFIDEV} ${ARR_WIRELESS[${i}]}</action></button>"
+		done
+		if [ "${ADD_WIFI_DEV}" == "yes" ]; then
+			echo "<button><label>Add unkown device</label><input file>${WIRELESS_IMG_DISABLED}</input><action>${INSTALL_NDISWRAPPER}</action></button>"
+		fi
+		echo "</hbox></frame>"
+	fi
+}
+
+function list_general_settings_dev() {
+	if [ "${HAVE_GENERAL}" == "yes" ]; then
+		echo "<frame Configure General Settings><hbox homogeneous=\"true\">"
+		echo "<button><label>Hostname</label><input file>${HOSTNAME_IMG}</input><action>${CONF_HOSTNAME}</action></button>"
+		echo "<button><label>Gateway</label><input file>${GATEWAY_IMG}</input><action>${CONF_GATEWAY}</action></button>"
+		if [ "${HAVE_DNS}" == "yes" ]; then
+			echo "<button><label>DNS System</label><input file>${DNS_IMG}</input><action>${CONF_DNS}</action></button>"
+		fi
+		echo "</hbox></frame>"
+	fi
+}
+
+MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IMG}\" window_position=\"1\" resizable=\"false\">
+	<vbox>
+		$(list_ethernet_dev)
+		$(list_wireless_dev)
+		$(list_general_settings_dev)
+		<hbox>
+			<button>
+				<label>Close</label>
+				<input file>${CLOSE_IMG}</input>
+				<action type=\"closewindow\">MAIN_DIALOG</action>
+			</button>
+		</hbox>
+	</vbox>
+</window>"
+
+export MAIN_DIALOG
+gtkdialog --program=MAIN_DIALOG >/dev/null
