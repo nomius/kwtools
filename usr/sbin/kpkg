@@ -304,7 +304,11 @@ function kpkg_package_search(){
 		fi
 		source  ${PKG_FOUND}/status >/dev/null 2>&1
 	else
-		PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2 -name "*${2}*"`
+		if [ "$2" == "/all" ]; then
+			PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2`
+		else
+			PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2 -name "*${2}*"`
+		fi
 		if [ -z "${PKG_FOUND}" ]; then
 			return 1
 		fi		
@@ -639,19 +643,20 @@ function kpkg_remove(){
 
 
 function print_search_given_data(){
-    if [ "${1}" == "standalone" ]; then
-        echo " * serie:     ${1} (Third party package)"
-    else 
-        echo " * serie:     ${1}"
-    fi
-    echo " * version:   ${2}"
-    echo " * arch:      ${3}"
-    echo " * build:     ${4}"
-    echo " * author:    ${5}"
-    echo " * extension: ${6}"
-    echo " * mirror:    ${7}"
-	if [ -n "${8}" ]; then
-		echo " * file:      ${8}"
+	if [ "${CSV}" == "yes" ]; then
+		echo "${8},${2},${3},${4},${6},${7},${1},${9},${10}"
+	else
+		if [ "${1}" == "standalone" ]; then
+			echo " * serie:     ${1} (Third party package)"
+		else 
+			echo " * serie:     ${1}"
+		fi
+		echo " * version:   ${2}"
+		echo " * arch:      ${3}"
+		echo " * build:     ${4}"
+		echo " * author:    ${5}"
+		echo " * extension: ${6}"
+		echo " * mirror:    ${7}"
 	fi
 }
 
@@ -684,23 +689,23 @@ function kpkg_search(){
 			if [ "${KPKG_MIRROR}" = "installed" ]; then
 				source ${xPKG}/status
 				INST[${i}]="${PKG_NAME}|${PKG_MIRROR}"
-				echo "Package found (installed): ${PKG_INST_NAME}"
-				print_search_given_data "${PKG_INST_SERIE}" "${PKG_INST_VERSION}" "${PKG_INST_ARCH}" "${PKG_INST_BUILD}" "${PKG_INST_AUTHOR}" "${PKG_INST_EXTENSION}" "${PKG_INST_MIRROR}"
+				[ "${CSV}" != "yes" ] && echo "Package found (installed): ${PKG_INST_NAME}"
+				print_search_given_data "${PKG_INST_SERIE}" "${PKG_INST_VERSION}" "${PKG_INST_ARCH}" "${PKG_INST_BUILD}" "${PKG_INST_AUTHOR}" "${PKG_INST_EXTENSION}" "${PKG_INST_MIRROR}" "${PKG_INST_NAME}" "I"
 				datafile="${KPKG_DB_HOME}/repos/${PKG_INST_MIRROR}/${PKG_INST_SERIE}/${PKG_INST_NAME}/data"
 				if [ -e ${datafile} ]; then
 					source ${datafile}
 					if [ "${PKG_INST_VERSION}" != "${PKG_VERSION}" -o "${PKG_INST_BUILD}" != "${PKG_BUILD}" ]; then
-						echo "THERE IS A NEW VERSION OF THIS PACKAGE"
+						[ "${CSV}" != "yes" ] && echo "THERE IS A NEW VERSION OF THIS PACKAGE"
 					fi
 				fi
-				echo
+				[ "${CSV}" != "yes" ] && echo
 			else
 				if [ ${KPKG_MIRROR} != "repos/local" ]; then
 					source ${xPKG}/data
 					kpkg_search_in_array 
 					if [ $? -eq 0 ]; then
-						echo "Package found: ${PKG_NAME}"
-						print_search_given_data "${PKG_SERIE}" "${PKG_VERSION}" "${PKG_ARCH}" "${PKG_BUILD}" "${PKG_AUTHOR}" "${PKG_EXTENSION}" "${PKG_MIRROR}"
+						[ "${CSV}" != "yes" ] && echo "Package found: ${PKG_NAME}"
+						print_search_given_data "${PKG_SERIE}" "${PKG_VERSION}" "${PKG_ARCH}" "${PKG_BUILD}" "${PKG_AUTHOR}" "${PKG_EXTENSION}" "${PKG_MIRROR}" "${PKG_NAME}" "N"
 						echo
 					fi
 				fi
