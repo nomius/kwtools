@@ -1,0 +1,153 @@
+#!/usr/bin/python
+
+import wx
+import os
+import commands
+import sys
+from wx.lib.mixins.listctrl import CheckListCtrlMixin
+
+os.environ["CSV"] = "yes"
+changed=dict()
+
+class CheckListCtrl(wx.ListCtrl, CheckListCtrlMixin):
+	def __init__(self, parent, arr_data):
+		wx.ListCtrl.__init__(self, parent, -1, style=wx.LC_REPORT)
+		CheckListCtrlMixin.__init__(self)
+
+	def OnCheckItem(self, index, flag):
+		data = self.GetItemData(index)
+		if flag:
+			what = "checked"
+			changed[str(index)] = 'I'
+		else:
+			what = "unchecked"
+			changed[str(index)] = 'N'
+
+class MainList(wx.Panel):
+	def __init__(self, parent):
+		wx.Panel.__init__(self, parent, -1)
+		csv_list = commands.getoutput('echo -e "1,2,3,4,5,6,7,I\na,b,c,d,e,f,g,h"')
+		#csv_list = commands.getoutput('kpkg search /all | sort')
+		global arr_data
+		arr_data  = csv_list.split("\n")
+		csv_list_lenght = len(arr_data) - 1
+		self.list = CheckListCtrl(self, None)
+		sizer = wx.BoxSizer()
+		sizer.Add(self.list, 1, wx.EXPAND)
+		self.SetSizer(sizer)
+		self.list.InsertColumn(0, 'Name')
+		self.list.InsertColumn(1, 'Version')
+		self.list.InsertColumn(2, 'Build')
+		self.list.InsertColumn(3, 'Serie')
+		self.list.InsertColumn(4, 'Mirror')
+		i = 0
+		while i <= csv_list_lenght:
+			col_data = arr_data[i].split(",")
+			index = self.list.InsertStringItem(sys.maxint, col_data[0])            
+			self.list.SetStringItem(index, 1, col_data[1])
+			self.list.SetStringItem(index, 2, col_data[3])
+			self.list.SetStringItem(index, 3, col_data[6])
+			self.list.SetStringItem(index, 4, col_data[5])
+			if col_data[7] == 'I':
+				self.list.CheckItem(index)
+			i += 1
+		self.list.SetColumnWidth(0, wx.LIST_AUTOSIZE)
+		self.list.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+
+ 
+class GalgoUI(wx.Dialog):
+	def __init__(self, parent, id, title):
+		wx.Dialog.__init__(self, parent, id, title, size=(640, 480), style=wx.DEFAULT_DIALOG_STYLE)
+		Commands = KpkgConnection()
+		vbox = wx.BoxSizer(wx.VERTICAL)
+		hbox1 = wx.BoxSizer(wx.HORIZONTAL)
+		hbox2 = wx.BoxSizer(wx.HORIZONTAL)
+		hbox3 = wx.BoxSizer(wx.HORIZONTAL)
+		pnl1 = wx.Panel(self, -1, style=wx.NO_BORDER)
+		checkbox = MainList(pnl1)
+		hbox2.Add(checkbox, 1, wx.ALL|wx.EXPAND, 3)
+		hbox1.Add(wx.Button(pnl1, 0, 'Manage Mirrors'), 1, wx.ALL| wx.TOP, 1)
+		hbox1.Add(wx.Button(pnl1, 1, 'Apply Changes'), 1, wx.ALL|wx.TOP, 1)
+		hbox1.Add(wx.Button(pnl1, 2, 'Upgrade System'), 1, wx.ALL| wx.TOP, 1)
+		hbox3.Add(wx.Button(pnl1, 3, 'Exit'), 1, wx.ALIGN_CENTER|wx.BOTTOM, 1)
+		self.Bind (wx.EVT_BUTTON, Commands.UpdateMirror, id=0)
+		self.Bind (wx.EVT_BUTTON, Commands.ApplyPackages, id=1)
+		self.Bind (wx.EVT_BUTTON, Commands.UpgradeSystem, id=2)
+		self.Bind (wx.EVT_BUTTON, self.Exit, id=3)
+		vbox.Add(hbox1, 0, wx.EXPAND)
+		vbox.Add(hbox2, 1, wx.EXPAND)
+		vbox.Add(hbox3, 0, wx.ALIGN_CENTER)
+		pnl1.SetSizer(vbox)
+
+	def Exit(self, event):
+		self.Close()
+
+
+def PrintError(msg):
+	app = wx.PySimpleApp() 
+	md = wx.MessageDialog(None, "\n" + msg, 'Error ocurred', wx.OK | wx.ICON_ERROR | wx.STAY_ON_TOP)
+	result = md.ShowModal()
+	md.Destroy()
+
+
+# KpkgConnection is a class used to connect the interface with kpkg itself
+class KpkgConnection():
+	def ApplyPackages(self, event):
+		for x in changed.keys():
+			col_data = arr_data[int(x)].split(",")
+			if col_data[7] != changed[x] and changed[x] == 'I':
+				self.InstallPKG(col_data[0], col_data[5])
+			if col_data[7] != changed[x] and changed[x] == 'N':
+				self.RemovePKG(col_data[0])
+			del changed[x]
+
+	def InstallPKG(self, package, mirror):
+		os.environ["MIRROR"] = mirror
+		output = commands.getoutput('kpkg install ' + package)
+		os.environ["MIRROR"] = ""
+		if output[:14] == "Done (install)":
+			return True
+		else:
+			PrintError(output)
+			return False
+
+	def RemovePKG(self, package):
+		output = commands.getoutput('kpkg remove ' + package)
+		if output[:13] == "Done (remove)":
+			return True
+		else:
+			PrintError(output)
+			return False
+
+	def UpdateMirror(self, mirror=""):
+		if mirror == "":
+			output = commands.getoutput('kpkg update all')
+		else:
+			output = commands.getoutput('kpkg update ' + mirror)
+		if output.find("failed to update") == -1:
+			return True
+		else:
+			PrintError(output)
+			return False
+
+	def UpgradeSystem(self, serie=""):
+		if serie == "":
+			output = commands.getoutput('kpkg upgrade')
+		else:
+			output = commands.getoutput('kpkg update ' + serie)
+		if output.find("failed to upgr") == -1:
+			return True
+		else:
+			PrintError(output)
+			return False
+
+
+class MyApp(wx.App):
+	def OnInit(self):
+		dia = GalgoUI(None, -1, 'Galgo')
+		dia.ShowModal()
+		dia.Destroy()
+		return True
+
+app = MyApp(0)
+app.MainLoop()
