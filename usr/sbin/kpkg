@@ -353,7 +353,7 @@ function kpkg_create_new_db_component_in_local_mirror(){
 	echo "PKG_MIRROR_PATH=\"${PKG_MIRROR_PATH}\"" >> ${data_file}
 }
 
-kpkg_unregister_package_from_local_mirror(){
+function kpkg_unregister_package_from_local_mirror(){
 	rm -rf ${KPKG_DB_HOME}/repos/local/${PKG_SERIE}/${PKG_NAME}
 }
 
