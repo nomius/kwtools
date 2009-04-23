@@ -238,7 +238,7 @@ while [ "${FORWARD}" == "no" ]; do
 	fi
 done
 
-useradd	-c "${SEARCH_STR}" ${FNUID} ${FDEFAULT_GROUP} ${FDEFGRPS} ${FHOMEDIR} ${FDEFSHELL} ${LOGIN}
+useradd	-m -c "${SEARCH_STR}" ${FNUID} ${FDEFAULT_GROUP} ${FDEFGRPS} ${FHOMEDIR} ${FDEFSHELL} ${LOGIN}
 echo "${LOGIN}:${PASSWORD1}" | chpasswd
 mkdir -p ${HOMEDIR}
 chown -R ${LOGIN}:${DEFAULT_GROUP} ${HOMEDIR}
