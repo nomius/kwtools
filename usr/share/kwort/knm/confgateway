@@ -34,11 +34,6 @@ export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IM
 			<button ok>
 				<input file>${OK_IMG}</input>
 			</button>
-			<button>
-				<label>Apply</label>
-				<input file>${APPLY_IMG}</input>
-				<action type=\"closewindow\">MAIN_DIALOG</action>
-			</button>
 		</hbox>
 	</vbox>
 </window>"
@@ -50,8 +45,5 @@ if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" -o -z "${HOSTNAME}" ]; then
 fi
 
 echo "GATEWAY=\"${GATEWAY}\"" > /etc/sysconfig/net/gateway
-
-if [ "${EXIT}" == "closewindow" ]; then
-	/etc/rc.d/rc.net restart gateway
-fi
+/etc/rc.d/rc.net restart gateway
 
