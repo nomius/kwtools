@@ -11,6 +11,9 @@ function show_default() {
 	fi
 }
 
+BEFORE_CHANGE_H=$(hostname)
+BEFORE_CHANGE_D=$(domainname)
+
 export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IMG}\" window_position=\"1\" resizable=\"false\">
 	<vbox>
 		<frame Hostname Setting>
@@ -41,6 +44,10 @@ export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IM
 				</hbox>
 			</vbox>
 		</frame>
+			<text use-markup=\"true\">
+				<label>\"<b>After changing something here, restart X</b>\"</label>
+			</text>
+
 		<hbox>
 			<button cancel>
 				<input file>${CANCEL_IMG}</input>
@@ -54,11 +61,20 @@ export MAIN_DIALOG="<window title=\"Kwort Network Manager\" icon-name=\"${KNM_IM
 
 eval $(gtkdialog --program=MAIN_DIALOG)
 
-if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" -o -z "${HOSTNAME}" ]; then
+if [ "${EXIT}" == "Cancel" -o "${EXIT}" == "abort" -o -z "${HOSTNAME}" -o -z "${DOMAIN}" ]; then
 	exit
 fi
 
 echo "HOSTNAME=\"${HOSTNAME}\"" > /etc/sysconfig/net/hostname
 echo "DOMAIN=\"${DOMAIN}\"" >> /etc/sysconfig/net/hostname
+
+/bin/hostname "${HOSTNAME}"
+/bin/domainname "${DOMAIN}"
+
+# Remove the old hostname
+sed -i "/127.0.0.1\t$BEFORE_CHANGE_H.$BEFORE_CHANGE_D\t$BEFORE_CHANGE_H/d" /etc/hosts
+
+# Add the new hostname to the hosts file
+echo -e "127.0.0.1\t$HOSTNAME.$DOMAIN\t$HOSTNAME" >> /etc/hosts
 
 #EOF
