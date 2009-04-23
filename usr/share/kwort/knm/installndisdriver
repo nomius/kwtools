@@ -9,7 +9,7 @@ function install_ndis() {
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
 		return 1
 	fi
-	if [[ ${1} != *.[iInNfF] ]]; then
+	if [[ ${1} != *.[iI][nN][fF] ]]; then
 		ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Windows driver must end in .inf</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
 		export ALERT_MESSAGE
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
@@ -22,8 +22,7 @@ function install_ndis() {
 		export ALERT_MESSAGE
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
 		return 0
-	fi
-	if [ ${ret} -ne 0 ]; then
+	elif [ ${ret} -ne 0 ]; then
 		ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>An unknown error ocurred while installing the driver</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
 		export ALERT_MESSAGE
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
