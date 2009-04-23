@@ -176,8 +176,8 @@ echo "MASK=\"${MASK}\"" >> /etc/sysconfig/net/devices/${1}
 echo "BROADCAST=\"${BROADCAST}\"" >> /etc/sysconfig/net/devices/${1}
 
 if [ "${CONNECTION_TYPE}" == 'ADSL (pppoe)' ]; then
-	echo -e "\"${PPPOE_USERNAME}\"\t*\t\"${PPPOE_USERNAME}\"" > /etc/ppp/pap-secrets
-	echo -e "\"${PPPOE_USERNAME}\"\t*\t\"${PPPOE_USERNAME}\"" > /etc/ppp/chap-secrets
+	echo -e "\"${PPPOE_USERNAME}\"\t*\t\"${PPPOE_PASSWD}\"" > /etc/ppp/pap-secrets
+	echo -e "\"${PPPOE_USERNAME}\"\t*\t\"${PPPOE_PASSWD}\"" > /etc/ppp/chap-secrets
 	cat << EOF > /etc/ppp/pppoe.conf
 ETH='${1}'
 USER='${PPPOE_USERNAME}'
