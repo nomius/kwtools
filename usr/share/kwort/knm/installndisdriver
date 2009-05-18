@@ -15,7 +15,7 @@ function install_ndis() {
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
 		return 1
 	fi
-	ndiswrapper "${i}" >/dev/null 2>&1
+	ndiswrapper -i "${1}" >/dev/null 2>&1
 	ret=$?
 	if [ ${ret} -eq 25 ]; then
 		ALERT_MESSAGE="<vbox><pixmap><input file>${ERROR_IMG48}</input></pixmap><text use-markup=\"true\"><label>\"<b>Driver is already installed</b>\"</label></text><button ok><input file>${OK_IMG}</input></button></vbox>"
@@ -28,6 +28,7 @@ function install_ndis() {
 		gtkdialog --program=ALERT_MESSAGE >/dev/null
 		return 0
 	fi
+	return 0
 }
 
 export MAIN_DIALOG="
