@@ -2,11 +2,11 @@
 
 #
 # Author David Bruno Cortarello <Nomius>. Redistribute under the terms of the
-# BSD-lite license. Bugs, suggests, nor projects: nomius@users.berlios.de.
+# BSD-lite license. Bugs, suggests, nor projects: dcortarello@gmail.com
 # Bassed on the source code of pkgtools by Patrick Volkerding.
 #
 # Program: kpkg
-# Version: 3.0c
+# Version: 3.0e
 #
 #
 # Copyright (c) 2005-2008, David B. Cortarello
@@ -77,20 +77,20 @@
 
 ###################### SANITIZE ENVIRONMENT FUNCTIONS ########################
 
-if [ -e /etc/kpkg.conf ]; then
+if [ -f /etc/kpkg.conf ]; then
 	source /etc/kpkg.conf
 	if [ -z "${KWORT_VERSION}" ]; then
-		KWORT_VERSION="2.4"
+		KWORT_VERSION="3"
 	fi
 	if [ -z "${KPKG_DB_HOME}" ]; then
 		KPKG_DB_HOME="/var/packages"
 	fi
 else
-	KWORT_VERSION="2.4.1"
+	KWORT_VERSION="3"
 	KPKG_DB_HOME=/var/packages
 fi
 
-KPKG_VERSION='3.0c'
+KPKG_VERSION='3.0e'
 
 function traping(){
 	if [ ! -z "${1}" ]; then
@@ -105,8 +105,8 @@ function kpkg_sanitize_environment(){
 	mkdir -p ${TMP}
 	umask 022
 	chmod 0700 ${TMP}
-	if [ -z "${MIRROR}" ]; then
-		MIRROR_PROTOCOL='ftp://'
+	if [ -z "${MIRROR}" -o "${MIRROR}" == "europa.fapyd.unr.edu.ar" ]; then
+		MIRROR_PROTOCOL='http://'
 		MIRROR="europa.fapyd.unr.edu.ar" # Kwort default mirror
 		MIRROR_PATH="pub/kwort/${KWORT_VERSION}/packages" # Kwort mirror default path
 	fi
@@ -149,8 +149,8 @@ function kpkg_get_standalone_package_data(){
 			PKG_EXTENSION="${PKG_EXTENSION}.${b[${x}]}"
 		fi
 	done
-	if [ -e "${1}" ]; then
-		PKG_MD5=$(md5sum "${1}" | cut -d \  -f 1)
+	if [ -f "${1}" ]; then
+		PKG_MD5=$(md5sum "${1}" 2>/dev/null | cut -d \  -f 1)
 	fi
 	fullname=$(basename "${1}" ".${PKG_EXTENSION}")
 	IFS='-'
@@ -181,7 +181,7 @@ function kpkg_get_standalone_package_data(){
 		PKG_SERIE="standalone"
 		PKG_NAME="${PKG_NAME}-tpp"
 		i=1
-		while [ ! -z "$(find ${KPKG_DB_HOME}/installed -type d -maxdepth 2 -mindepth 2 -name "${PKG_NAME}${i}")" ]; do
+		while [ ! -z "$(find ${KPKG_DB_HOME}/installed -maxdepth 2 -mindepth 2 -type d -name "${PKG_NAME}${i}")" ]; do
 			i=$((${i} + 1))
 		done
 		PKG_NAME="${PKG_NAME}${i}"
@@ -220,7 +220,7 @@ function kpkg_update(){
 			for x in *; do
 				if [ "${x}" != "local" ]; then
 					datafile=$(ls -1 ${x}/*/*/data | head -n 1)
-					if [ -e "${datafile}" ]; then
+					if [ -f "${datafile}" ]; then
 						MIRROR=${x}
 						source "${datafile}"
 						MIRROR_PROTOCOL="${PKG_MIRROR_PROTOCOL}"
@@ -241,12 +241,12 @@ function kpkg_update(){
 }
 
 function kpkg_give_package_vars(){
-	PKG=`find . -type d -maxdepth 2 -mindepth 2 -name ${1}`
+	PKG=`find . -maxdepth 2 -mindepth 2 -type d -name ${1}`
 	if [ -z "${PKG}" ]; then
 		return 1
 	fi
 	source ${PKG}/data 2>/dev/null
-	if [ -e /var/packages/installed/${PKG_SERIE}/${PKG_NAME}/status ]; then
+	if [ -f /var/packages/installed/${PKG_SERIE}/${PKG_NAME}/status ]; then
 		source /var/packages/installed/${PKG_SERIE}/${PKG_NAME}/status 2>/dev/null
 	fi
 	return 0
@@ -258,7 +258,7 @@ function kpkg_package_search_in_repos(){
 		if [ -z "${MIRROR}" ]; then
 			i=0
 			for x in *; do
-				PKGS[${i}]=`find ${x} -type d -maxdepth 2 -mindepth 2 -name $(basename ${1})`
+				PKGS[${i}]=`find ${x} -maxdepth 2 -mindepth 2 -type d -name $(basename ${1})`
 				if [ -n "${PKGS[${i}]}" ]; then
 					i=$((${i} + 1))
 				fi
@@ -283,7 +283,7 @@ function kpkg_package_search_in_repos(){
 			return 1
 		else
 			cd "${MIRROR}"
-			PKGS=`find . -type d -maxdepth 2 -mindepth 2 -name $(basename ${1})`
+			PKGS=`find . -maxdepth 2 -mindepth 2 -type d -name $(basename ${1})`
 			if [ -z "${PKGS}" ]; then
 				echo "Package not found."
 				return 1
@@ -298,16 +298,16 @@ function kpkg_package_search_in_repos(){
 
 function kpkg_package_search(){
 	if [ "${1}" = "exact" ]; then
-		PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2 -name "${2}"`
+		PKG_FOUND=`find . -maxdepth 2 -mindepth 2 -type d -name "${2}"`
 		if [ -z "${PKG_FOUND}" ]; then
 			return 1
 		fi
 		source  ${PKG_FOUND}/status >/dev/null 2>&1
 	else
 		if [ "$2" == "/all" ]; then
-			PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2`
+			PKG_FOUND=`find . -maxdepth 2 -type d -mindepth 2`
 		else
-			PKG_FOUND=`find . -type d -maxdepth 2 -mindepth 2 -name "*${2}*"`
+			PKG_FOUND=`find . -maxdepth 2 -mindepth 2 -type d -name "*${2}*"`
 		fi
 		if [ -z "${PKG_FOUND}" ]; then
 			return 1
@@ -401,13 +401,13 @@ function kpkg_uncompress_tar.lzma(){
 }
 
 function kpkg_get_desc_tar.lzma(){
-	if [ -e /install/slack-desc ]; then
+	if [ -f /install/slack-desc ]; then
 		cat /install/slack-desc
 	fi
 }
 
 function kpkg_get_desc_tgz(){
-	if [ -e /install/slack-desc ]; then
+	if [ -f /install/slack-desc ]; then
 		cat /install/slack-desc
 	fi 
 }
@@ -490,9 +490,19 @@ function kpkg_install_standalone_package(){
 	kpkg_clean_variables
 	kpkg_sanitize_environment
 	kpkg_get_standalone_package_data "${1}"
-	PKG_MIRROR_PROTOCOL="file://"
-	PKG_MIRROR="local"
-	PKG_MIRROR_PATH=""
+	if [ -n "${MIRROR}" ]; then
+		if [ -z "${MIRROR_PATH}" -o -z "${MIRROR_PROTOCOL}" ]; then
+			echo "MIRROR set, but MIRROR_PATH and MIRROR_PROTOCOL wasn't"
+			return 1
+		fi
+		PKG_MIRROR="${MIRROR}"
+		PKG_MIRROR_PATH="${MIRROR_PATH}"
+		PKG_MIRROR_PROTOCOL="${MIRROR_PROTOCOL}"
+	else
+		PKG_MIRROR="local"
+		PKG_MIRROR_PATH=""
+		PKG_MIRROR_PROTOCOL="file://"
+	fi
 	kpkg_create_new_db_component_in_local_mirror
 	kpkg_create_new_installed_db_component
 	kpkg_init_installdb_pkg "${1}"
@@ -509,7 +519,7 @@ function kpkg_install_standalone_package(){
 }
 
 function kpkg_install(){
-	if [ -e "${1}" ]; then
+	if [ -f "${1}" ]; then
 		kpkg_install_standalone_package "${1}"
 		echo "Done (install) ${1}."
 		return 0
@@ -524,7 +534,7 @@ function kpkg_install(){
 		return 1
 	fi
 	check_file="${KPKG_DB_HOME}/repos/${PKG_MIRROR}/${PKG_SERIE}/${PKG_NAME}/${PKG_NAME}-${PKG_VERSION}-${PKG_ARCH}-${PKG_BUILD}${PKG_AUTHOR}.${PKG_EXTENSION}"
-	if [ ! -e "${check_file}" -o "$(md5sum ${check_file} | cut -d \  -f 1)" != "${PKG_MD5}" ]; then
+	if [ ! -f "${check_file}" -o "$(md5sum ${check_file} 2>/dev/null | cut -d \  -f 1)" != "${PKG_MD5}" ]; then
 		rm -f "${check_file}"
 		fork=$(kpkg_download "${PKG}")
 		if [ $? -ne 0 ]; then
@@ -568,16 +578,16 @@ function kpkg_download(){
 		return 1
 	fi
 	check_new="${PKG_SERIE}/${PKG_NAME}/${PKG_NAME}-${PKG_VERSION}-${PKG_ARCH}-${PKG_BUILD}${PKG_AUTHOR}.${PKG_EXTENSION}"
-	if [[ -e "${check_new}" ]] && [[ "${REDOWNLOAD}" != [yY][eE][sS] ]]; then
+	if [[ -f "${check_new}" ]] && [[ "${REDOWNLOAD}" != [yY][eE][sS] ]]; then
 		echo "Package already downloaded (use: REDOWNLOAD=yes to redownload anyways)."
 		return 1
 	fi
-	if [ -e "${check_new}" ]; then
+	if [ -f "${check_new}" ]; then
 		rm -f "${check_new}"
 	fi
 	kpkg_downloadpkg
 	if [ $? -eq 0 ]; then
-		if [ "${PKG_MD5}" != "$(md5sum ${check_new} | cut -d \  -f 1)" ]; then
+		if [ "${PKG_MD5}" != "$(md5sum ${check_new} 2>/dev/null | cut -d \  -f 1)" ]; then
 			rm -f "${check_new}"
 			echo "Package corrupted, aborting."
 			return 1
@@ -586,7 +596,7 @@ function kpkg_download(){
 		echo "Error downloading package."
 		return 1
 	fi
-	echo "Done (download) ${PKG}."
+	echo "Done (download) $(basename ${PKG})."
 	return 0
 }
 
@@ -629,7 +639,7 @@ function kpkg_remove(){
 		return 1
 	fi
     fullname="${KPKG_DB_HOME}/installed/${PKG_INST_SERIE}/${PKG_INST_NAME}/${PKG_INST_NAME}-${PKG_INST_VERSION}-${PKG_INST_ARCH}-${PKG_INST_BUILD}${PKG_INST_AUTHOR}"
-    if [ ! -e "${fullname}" ]; then
+    if [ ! -f "${fullname}" ]; then
         echo "Package not installed."
         return 1
     fi
@@ -663,7 +673,7 @@ function print_search_given_data(){
 # The next function sucks! It transform a linear method in a cuadratic algorithm
 # So yeah, it sucks!
 function kpkg_search_in_array(){
-	if [ ${#INST[@]} -eq 0 ]; then
+	if [ ${1} -eq 0 ]; then
 		return 0
 	fi
 	for((i=0;i<${#INST[@]};i++)); do
@@ -688,11 +698,12 @@ function kpkg_search(){
 		for xPKG in ${PKG_FOUND}; do
 			if [ "${KPKG_MIRROR}" = "installed" ]; then
 				source ${xPKG}/status
+				i=$((${i} + 1))
 				INST[${i}]="${PKG_NAME}|${PKG_MIRROR}"
 				[ "${CSV}" != "yes" ] && echo "Package found (installed): ${PKG_INST_NAME}"
 				print_search_given_data "${PKG_INST_SERIE}" "${PKG_INST_VERSION}" "${PKG_INST_ARCH}" "${PKG_INST_BUILD}" "${PKG_INST_AUTHOR}" "${PKG_INST_EXTENSION}" "${PKG_INST_MIRROR}" "${PKG_INST_NAME}" "I"
 				datafile="${KPKG_DB_HOME}/repos/${PKG_INST_MIRROR}/${PKG_INST_SERIE}/${PKG_INST_NAME}/data"
-				if [ -e ${datafile} ]; then
+				if [ -f ${datafile} ]; then
 					source ${datafile}
 					if [ "${PKG_INST_VERSION}" != "${PKG_VERSION}" -o "${PKG_INST_BUILD}" != "${PKG_BUILD}" ]; then
 						[ "${CSV}" != "yes" ] && echo "THERE IS A NEW VERSION OF THIS PACKAGE"
@@ -702,7 +713,7 @@ function kpkg_search(){
 			else
 				if [ ${KPKG_MIRROR} != "repos/local" ]; then
 					source ${xPKG}/data
-					kpkg_search_in_array 
+					kpkg_search_in_array ${i}
 					if [ $? -eq 0 ]; then
 						[ "${CSV}" != "yes" ] && echo "Package found: ${PKG_NAME}"
 						print_search_given_data "${PKG_SERIE}" "${PKG_VERSION}" "${PKG_ARCH}" "${PKG_BUILD}" "${PKG_AUTHOR}" "${PKG_EXTENSION}" "${PKG_MIRROR}" "${PKG_NAME}" "N"
@@ -732,11 +743,16 @@ function kpkg_upgrade_serie(){
 		if [ -d "${x}" ]; then
 			source ${x}/status >/dev/null 2>&1
 			if [ "${PKG_INST_MIRROR}" != "local" ]; then
-				source "${KPKG_DB_HOME}/${PKG_INST_MIRROR}/${PKG_INST_SERIE}/${PKG_INST_NAME}/${PKG_INST_NAME}/data" >/dev/null 2>&1
+				source "${KPKG_DB_HOME}/repos/${PKG_INST_MIRROR}/${PKG_INST_SERIE}/${PKG_INST_NAME}/data" >/dev/null 2>&1
 				if [ -n "${PKG_MIRROR}" ]; then
 					if [ "${PKG_VERSION}" != "${PKG_INST_VERSION}" -o "${PKG_BUILD}" != "${PKG_INST_BUILD}" ]; then
-						( kpkg_remove "${PKG_NAME}"
-						MIRROR=${PKG_INST_MIRROR} kpkg_install "${PKG_NAME}" )
+						( MIRROR=${PKG_INST_MIRROR} kpkg_download "${PKG_NAME}" )
+						if [ $? -eq 0 ]; then
+							( kpkg_remove "${PKG_NAME}"
+							MIRROR=${PKG_INST_MIRROR} kpkg_install "${PKG_NAME}" )
+						else
+							return 1
+						fi
 					fi
 				fi
 			fi
@@ -795,7 +811,7 @@ Usage: kpkg OPTION [package,series]
  provides         search for files inside of installed packages
  upgrade          upgrade the whole system or a package series
 
-Kpkg ${KPKG_VERSION} by David B. Cortarello (Nomius) <nomius@users.berlios.de>
+Kpkg ${KPKG_VERSION} by David B. Cortarello (Nomius) <dcortarello@gmail.com>
 EOF
 }
 
