@@ -216,7 +216,7 @@ if [ "$CHOWN" = "y" ]; then
   done
 fi
 
-if [ "$MAN_ZIP" = "y" ]; then
+if [ "$ZIP_MAN" = "y" ]; then
   for x in usr/man usr/X11R6/man var/man /share/man local/man; do
     if [ -d ${x} ]; then
       gzip -9 ${x}/man?/*
