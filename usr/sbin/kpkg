@@ -578,12 +578,15 @@ function kpkg_download(){
 		return 1
 	fi
 	check_new="${PKG_SERIE}/${PKG_NAME}/${PKG_NAME}-${PKG_VERSION}-${PKG_ARCH}-${PKG_BUILD}${PKG_AUTHOR}.${PKG_EXTENSION}"
-	if [[ -f "${check_new}" ]] && [[ "${REDOWNLOAD}" != [yY][eE][sS] ]]; then
-		echo "Package already downloaded (use: REDOWNLOAD=yes to redownload anyways)."
-		return 1
-	fi
-	if [ -f "${check_new}" ]; then
-		rm -f "${check_new}"
+	if [ "${PKG_MD5}" == "$(md5sum ${check_new} 2>/dev/null | cut -d \  -f 1)" ]; then
+		if [[ -f "${check_new}" ]] && [[ "${REDOWNLOAD}" != [yY][eE][sS] ]]; then
+			echo "Package already downloaded (use: REDOWNLOAD=yes to redownload anyways)."
+			return 1
+		fi
+	else
+		if [ -f "${check_new}" ]; then
+			rm -f "${check_new}"
+		fi
 	fi
 	kpkg_downloadpkg
 	if [ $? -eq 0 ]; then
