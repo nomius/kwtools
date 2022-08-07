@@ -1,0 +1,15 @@
+#
+# /etc/profile: system-wide defaults for bash(1) login shells
+#
+
+if [ "$UID" = "0" ]; then
+	export PATH="/sbin:/usr/sbin:/opt/sbin:/bin:/usr/bin:/opt/bin"
+else
+	export PATH="/bin:/usr/bin:/opt/bin"
+fi
+
+for x in /etc/profile.d/*.sh; do
+	[ -x "${x}" ] && . "${x}"
+done
+
+# End of file
