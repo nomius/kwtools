@@ -166,8 +166,14 @@ def wireless():
         with open("/proc/net/wireless") as f:
             for line in f.readlines():
                 if ":" in line:
-                    lines = list(filter(None, line.split(" ")))
-                    return math.ceil(float(lines[2] + "0")*100/70)
+                    ifname = line.split(":")[0]
+                    # Below block is an ugly hack based on the fact that Linux puts the default gateway interface first in /proc/net/route
+                    with open("/proc/net/route") as r:
+                        rlines = r.readlines()
+                        if rlines[1].split("\t")[0] != ifname:
+                            return None
+                    columns = list(filter(None, line.split(" ")))
+                    return math.ceil(float(columns[2] + "0")*100/70)
     except:
         return None
     return None
