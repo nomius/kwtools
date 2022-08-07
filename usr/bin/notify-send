@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+ICON=~/.local/pixmaps/alert.xpm
+FONT="-*-dina-medium-r-*-*-13-*-*-*-*-*-*-*"
+
+(echo "^i(${ICON}) $*" | dzen2 -p 2) &

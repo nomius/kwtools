@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+
+#
+# By David B. Cortarello (Nomius) <dcortarello@gmail.com>
+# Do whatever you want with it
+#
+
+# kxdg.cfg format:
+# extension1[,extension2,...extensionN]|command
+
+APPLICATIONS_DIR=/usr/share/applications
+USER_CONF=$HOME/.config/kxdg.cfg
+GLOBAL_CONF=/usr/share/kxdg.cfg
+
+
+ReadConf()
+{
+	# Kwort's xdg implementation load first user's conf, then global
+	i=0
+	if [ -f $USER_CONF ]; then
+		while read line; do
+			DEFAULTS[$i]="$line"
+			i=$(($i + 1))
+		done < $USER_CONF
+	fi
+	if [ -f $GLOBAL_CONF ]; then
+		while read line; do
+			ext=$(echo "${line}" | awk -F '|' '{print $1}')
+			if ! grep -q "${ext}|" $USER_CONF 2>/dev/null; then
+				DEFAULTS[$i]="$line"
+				i=$(($i + 1))
+			fi
+		done < $GLOBAL_CONF
+	fi
+
+	# Dmenu
+	cachedir=${XDG_CACHE_HOME:-"$HOME/.cache"}
+	if [ -d "$cachedir" ]; then
+		cache=$cachedir/dmenu_run
+	else
+		cache=$HOME/.dmenu_cache # if no xdg dir, fall back to dotfile in ~
+	fi
+}
+
+
+GetApplicationFiles()
+{
+	ext="${1}"
+	ffs=$(grep "MimeType=.*${ext}.*" ${APPLICATIONS_DIR}/* | awk -F ':' '{print $1}')
+	echo $ffs
+	return $(echo -n "$ffs" | wc -w)
+}
+
+
+GetApplicationDefaults()
+{
+	ext="${1}"
+	OLDIFS="$IFS"
+	for x in "${DEFAULTS[@]}"; do
+		cmd=$(echo "$x" | awk -F '|' '{print $2}')
+		exts=$(echo "$x" | awk -F '|' '{print $1}')
+		aExt=()
+		IFS=","
+		aExt=($exts)
+		IFS="$OLDIFS"
+		for y in "${aExt[@]}"; do
+			if echo "${ext}" | grep -q -x "${y}"; then
+				echo "${cmd}"
+				return 0
+			fi
+		done
+	done
+	exit
+	return 1
+}
+
+
+WriteDefaults()
+{
+	i=0
+	mkdir -p $(dirname "${USER_CONF}")
+	:> "${USER_CONF}"
+	for x in "${DEFAULTS[@]}"; do
+		echo "${DEFAULTS[$i]}" >> "${USER_CONF}"
+		i=$(($i + 1))
+	done
+}
+
+
+AddCmd()
+{
+	total=${#DEFAULTS[@]}
+	for((i=0;i<$total;i++)); do
+		if [ "${DEFAULTS[$i]}" = "$1" ]; then
+			return 0
+		fi
+	done
+	DEFAULTS[$total]="$1|$2"
+}
+
+
+GetCmd()
+{
+	cmd=$(
+    IFS=:
+    if stest -dqr -n "$cache" $PATH; then
+        stest -flx $PATH | sort -u | tee "$cache" | dmenu "$@"
+    else
+        dmenu -p "Choose command to open files $extension" "$@" < "$cache"
+    fi)
+	echo "$cmd"
+}
+
+
+GetApplicationFile()
+{
+	application=$(echo -e "$1" | dmenu -p "Choose from the existing application or type a new command to open this file types")
+	while read line; do
+		if [ "$line" = "$application" ]; then
+			f=$(grep "^Name=$application$" ${APPLICATIONS_DIR}/* | awk -F ':' '{print $1}')
+			echo $f
+			return 0
+		fi
+	done < <(echo -e "$1")
+	echo "$application"
+	return 1
+}
+
+
+RunCMD()
+{
+	full="$(readlink -f "$2")"
+	if [ -n "$(echo "$1" | grep "%[fF]")" ]; then
+		cmd=$(echo "$1" | sed -e "s|%[fF]|\"$full\"|g")
+		sh -c "${cmd}" &
+	elif [ -n "$(echo "$1" | grep "%[uU]")" ]; then
+		full="$(echo "$full" | sed -e 's/ /%20/g')"
+		cmd=$(echo "$1" | sed -e "s|%[uU]|\"file://$full\"|g")
+		sh -c "${cmd}" &
+	else
+		${1} "${2}" &
+	fi
+}
+
+
+INIhParser()
+{
+	awk -v ssection="Desktop Entry" -v key="$2" '{
+		if ($0 ~ /^\[.*/)
+			section=$0
+		else if ($0 !~ /^$/)
+			if (section == "[" ssection "]") {
+				split($0, kv, "=")
+				if (kv[1] == key)
+					print kv[2]
+			}
+	}' "${1}"
+}
+
+
+ReadConf
+extension="$(echo "${1/*./}" | tr '[:upper:]' '[:lower:]')"
+mime=$(file --mime-type "${1}" | awk '{print $NF}')
+aFiles=$(GetApplicationFiles "$mime")
+iFiles=$?
+cmd=$(GetApplicationDefaults $extension)
+if [ -z "$cmd" ]; then
+	if [ $iFiles -eq 1 ]; then
+		cmd=$(INIhParser $aFiles "Exec")
+	elif [ $iFiles -eq 0 ]; then
+		cmd=$(GetCmd)
+	else
+		for x in ${aFiles[@]}; do
+			name="$(INIhParser $x "Name")"
+			[ -z "$names" ] && names=$name || names="${names}\n$name"
+		done
+		afile=$(GetApplicationFile "${names}")
+		if [ $? -eq 0 ]; then
+			cmd=$(INIhParser $afile "Exec")
+		else
+			cmd=$afile
+		fi
+	fi
+	if [ -n "$cmd" ]; then
+		AddCmd "${extension}|${cmd}"
+		WriteDefaults
+	fi
+fi
+RunCMD "${cmd}" "${1}"
+exit 0
+

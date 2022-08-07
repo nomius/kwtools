@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+USE_PULSE=1
+ALSA_CARD=1
+ALSA_CHANNEL=Master
+
+. ${HOME}/.config/audio.conf &>/dev/null
+
+# Colors, fonts and layouts
+
+SECS="1"            # sleep $SECS
+BG="#555555"        # background colour of window
+FG="#ffffff"        # foreground colour of text/icon
+BAR_FG="#ffffff"    # foreground colour of volume bar
+BAR_BG="#444444"    # background colour of volume bar
+HEIGHT="30"         # window height
+WIDTH="250"         # window width
+BAR_WIDTH="165"     # width of volume bar
+ICON=/usr/share/pixmaps/volume.xpm
+FONT="-*-dina-medium-r-*-*-13-*-*-*-*-*-*-*"
+
+PIPE="/tmp/dvolpipe"
+
+err() {
+	echo "$1"
+	exit 1
+}
+
+usage() {
+	cat << EOF
+usage: dvol [option] [argument]
+
+Options:
+     -i, --increase - increase volume by 'argument'
+     -d, --decrease - decrease volume by 'argument'
+     -t, --toggle   - toggle mute on and off
+     -h, --help     - display this
+     open-mixer     - Open volume mixer (alsamixer or pulsemixer)
+EOF
+	exit
+}
+
+toggle() {
+	if [ $USE_PULSE -eq 0 ]; then
+		amixer sset -c ${ALSA_CARD} ${ALSA_CHANNEL} toggle &>/dev/null
+		amixer sget -c ${ALSA_CARD} ${ALSA_CHANNEL} | (grep -q '\[off\]' && echo 0 || amixer sget -c ${ALSA_CARD} ${ALSA_CHANNEL} | awk -F "[][%]" '/dB/ { print $2 }')
+	else
+		pulsemixer --toggle-mute
+		if [ "$(pulsemixer --get-mute)" = "1" ]; then
+			echo 0
+		else
+			pulsemixer --get-volume | awk '{print $1}'
+		fi
+	fi
+}
+
+increase() {
+	if [ $USE_PULSE -eq 0 ]; then
+		amixer sset -c ${ALSA_CARD} ${ALSA_CHANNEL} unmute &>/dev/null
+		amixer sset -c ${ALSA_CARD} ${ALSA_CHANNEL} "${1}%+"
+		amixer sget -c ${ALSA_CARD} ${ALSA_CHANNEL} | awk -F "[][%]" '/dB/ { print $2 }'
+	else
+		pulsemixer --unmute
+		pulsemixer --change-volume "+${1}"
+		pulsemixer --get-volume | awk '{print $1}'
+	fi
+}
+
+decrease() {
+	if [ $USE_PULSE -eq 0 ]; then
+		amixer sset -c ${ALSA_CARD} ${ALSA_CHANNEL} unmute &>/dev/null
+		amixer sset -c ${ALSA_CARD} ${ALSA_CHANNEL} "${1}%-"
+		amixer sget -c ${ALSA_CARD} ${ALSA_CHANNEL} | awk -F "[][%]" '/dB/ { print $2 }'
+	else
+		pulsemixer --unmute
+		pulsemixer --change-volume "-${1}"
+		pulsemixer --get-volume | awk '{print $1}'
+	fi
+}
+
+open_mixer() {
+	if [ $USE_PULSE -eq 0 ]; then
+		urxvt -bg black -fg white -geometry 110x25 -e bash -c "LC_ALL=C alsamixer" &
+	else
+		urxvt -bg black -fg white -geometry 110x25 -e bash -c "LC_ALL=C pulsemixer" &
+	fi
+}
+
+case "$1" in
+	'-i'|'--increase')
+		[ -z "$2" ] && err "No argument specified for increase."
+		[ -n "$(tr -d [0-9] <<<$2)" ] && err "The argument needs to be an integer."
+		VOL=$(increase ${2})
+	;;
+	'-d'|'--decrease')
+		[ -z "$2" ] && err "No argument specified for decrease."
+		[ -n "$(tr -d [0-9] <<<$2)" ] && err "The argument needs to be an integer."
+		VOL=$(decrease ${2})
+	;;
+	'-t'|'--toggle')
+		VOL=$(toggle)
+	;;
+	''|'-h'|'--help')
+		usage
+	;;
+	'open-mixer')
+		open_mixer
+		exit 0
+	;;
+	*)
+		err "Unrecognized option \`$1', see dvol --help"
+	;;
+esac
+
+SIZE=$(xdpyinfo | awk '/dimensions:/ {print $2}')
+XPOS=$(($(echo ${SIZE} | awk -F x '{print $1}') - 258))
+YPOS=$(($(echo ${SIZE} | awk -F x '{print $2}') - 70))
+
+# Using named pipe to determine whether previous call still exists
+# Also prevents multiple volume bar instances
+if [ ! -e "$PIPE" ]; then
+	mkfifo "$PIPE"
+	(dzen2 -e "button1=exec:$0 open-mixer" -tw "$WIDTH" -h "$HEIGHT" -x "$XPOS" -y "$YPOS" -fn "$FONT" -bg "$BG" -fg "$FG" < "$PIPE"
+		rm -f "$PIPE") &
+fi
+
+# Feed the pipe!
+(echo "$VOL" | gdbar -l "^i(${ICON}) $VOL% " -fg "$BAR_FG" -bg "$BAR_BG" -w "$BAR_WIDTH" ; sleep "$SECS") > "$PIPE"

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+. $HOME/.config/browser.conf &>/dev/null
+
+case "$BROWSER" in
+	chromium)
+		if [ -e /usr/bin/chromium ]; then
+			exec /usr/bin/chromium $*
+		else
+			echo "Chromium is not installed" | dmenu -i -p "Error"
+		fi
+	;;
+	brave)
+		if [ -e /usr/bin/brave ]; then
+			exec /usr/bin/brave $*
+		else
+			echo "Brave is not installed" | dmenu -i -p "Error"
+		fi
+
+	;;
+	firefox)
+		if [ -e /usr/bin/firefox ]; then
+			exec /usr/bin/firefox $*
+		else
+			echo "Firefox is not installed" | dmenu -i -p "Error"
+		fi
+
+	;;
+	chrome)
+		if [ -e /usr/bin/google-chrome-stable ]; then
+			exec /usr/bin/google-chrome-stable --enable-features=WebUIDarkMode,CheckerImaging,MarkHttpAs,ScrollAnchorSerialization,brotli-encoding --force-dark-mode --ignore-gpu-blacklist --enable-gpu-rasterization --enable-native-gpu-memory-buffers --enable-zero-copy --disable-gpu-driver-bug-workarounds $*
+		else
+			echo "Chrome is not installed" | dmenu -i -p "Error"
+		fi
+	;;
+	*)
+		for x in firefox chrome brave chromium; do
+			if which $x &>/dev/null; then
+				[ -n "${available}" ] && available="${available}\n${x}" || available="${x}"
+			fi
+		done
+		BROWSER=$(printf "${available}\n" | dmenu -p "Select the browser you want to use (depends on availability)")
+		mkdir -p $HOME/.config
+		echo "BROWSER=$BROWSER" > $HOME/.config/browser.conf
+		exec ${0} $*
+	;;
+esac
